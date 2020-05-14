@@ -1,0 +1,29 @@
+HOLY GRAIL (Techinical Reference Manual) : https://developer.arm.com/docs/100166/0001 
+INTRODUCTION
+- Generally any CPU = CPU core/s + CPU specific peripherals 
+- Cortex M4 processor core : registers + ALU + instruction decoding and pipelining hardware + multiplication/division hardware + address generation unit.
+- CPU or processor : ( Cortex M4 processor core ) + processor specific peripherals(eg. NVIC,AHB,MPU,ITM,FPB,bus matrix etc.). This processor talk to external world by using buses(Icode,Dcode,System bus interface). CPUs can have multiple cores. Cortex M4 is a single core CPU.
+- Microcontroller = CPU + manufacturer specific peripherals. They talk to each other using buses. Manufacturers are free to select the processor specific peripherals(FPU/ITM etc) to use.
+- printf() notes - In ARM cortex M3/M4/M7 processors, printf() works over serial wire output(SWO) of SWD(serial wire debug) interface. This is enabled due to ITM(instrumentation trace macrocell) peripheral of the processor. This is not present in Cortex M0 processors. SWD is 2 wire interface for accessing the arm debug(read memories & registers,add breakpoints, program flash, halt, run) interface. SWD connector has 2 debug pins and 1 trace pin. 
+- SWD = SWDIO + SWCLK <= These are the debug pins used by the stlink(host) to communicate with the target processor about the breakpoints, hatling,running etc. ITM has a FIFO buffer which is connected to the SWO(trace) pin and can be accessed on PC/IDE for reading out the printf statements. This is also called as signal wire viewing(SWV).
+- Redirecting printf() - when printf() is compiled, it is linked with standard c library which implements the low level __write(). We can then use lcd,uart,i2c or any other peripheral of our choice to send the printf output. In our case we are redirecting this to the ITM peripheral so that we can view it using SWV.
+
+OPERATIONAL MODES OF PROCESSOR
+- There are two modes - Thread mode(User mode) , where all the application code runs and Handler mode, where all expection handler will run. Processor starts with thread mode and when interrupt/internal expection happens, then it changes from thread to handler mode to service that expection. Handler mode is always privileged and thread mode is privileged by default and can be made unprivileged.
+- Core registers : Property of processor core. R0-R12 are general purpose 32-bit registers, used for data/address operation and manipulation. R13 is Stack Pointer(SP), which is used to track the stack memory. R14 is Link Register(LR), which is used to store the return address after sub routine. If a function needs to call another function or subroutine, it needs to save the value of LR in the stack first. Otherwise, the current value in LR will be lost when the function call is made. R15 is the Program Counter(PC), which stores the address of the next instruction.
+- Special registers : Program Status Register = ( application + interrupt + execution ) statuses are combined. APSR contains all the conditional flags from previous intstruction execution in ALU ie Negative/Carry/Zero/Overflow/DSP overflow-saturation flag. IPSR stores the interrupt number of the ISR. EPSR stores the mode(if T bit==1 then Thumb ISA else ARM ISA). Arm cortex M supports only thumb ISA therefore, T bit must be maintained as 1 else will processor will give Usage fault.
+-All the above registers are non memory mapped registers ie they dont have a unique address and are not the part of processors memory map. They can be accessed by assembly instructions only and not by dereferencing the pointers. There are registers for the processor specific peripherals(NVIC,DEBUG) and Microcontroller specific peripherals(I2c,UART) which are part of the memory map and each register has a unique address and can be accessed with address dereferencing.
+-Unprivileged mode so that user tasks do not modify settings of kernel/OS code. Before handing the control to the user task, the kernel will change the access mode to that of unprivileged. If it wants to access low level things then it should do it using a system call that in turn will be services by the kernel.
+
+INLINE ASSEMBLY CODE
+Why - This is the only way of accessing the core registers from C. We have to follow the non standard compiler extension for it.
+
+
+
+
+
+ITM Cortex M4:
+https://community.arm.com/developer/tools-software/tools/b/tools-software-ides-blog/posts/trace-cortex-m-software-with-the-instruction-trace-macrocell-itm
+
+Adding .gitignore after commiting all unnecessary shit:
+https://stackoverflow.com/questions/19663093/apply-gitignore-on-an-existing-repository-already-tracking-large-number-of-file

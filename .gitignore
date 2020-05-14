@@ -1,0 +1,13 @@
+code/.metadata
+code/**/Debug
+code/**/.settings
+code/**/.cproject
+code/**/.project
+code/**/*.cfg
+code/**/*.launch
+code/01HelloWorld
+code/01HelloWorldCube
+code/RemoteSystemsTempFiles
+
+
+
