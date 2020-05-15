@@ -13,17 +13,42 @@ OPERATIONAL MODES OF PROCESSOR
 - Core registers : Property of processor core. R0-R12 are general purpose 32-bit registers, used for data/address operation and manipulation. R13 is Stack Pointer(SP), which is used to track the stack memory. R14 is Link Register(LR), which is used to store the return address after sub routine. If a function needs to call another function or subroutine, it needs to save the value of LR in the stack first. Otherwise, the current value in LR will be lost when the function call is made. R15 is the Program Counter(PC), which stores the address of the next instruction.
 - Special registers : Program Status Register = ( application + interrupt + execution ) statuses are combined. APSR contains all the conditional flags from previous intstruction execution in ALU ie Negative/Carry/Zero/Overflow/DSP overflow-saturation flag. IPSR stores the interrupt number of the ISR. EPSR stores the mode(if T bit==1 then Thumb ISA else ARM ISA). Arm cortex M supports only thumb ISA therefore, T bit must be maintained as 1 else will processor will give Usage fault.
 -All the above registers are non memory mapped registers ie they dont have a unique address and are not the part of processors memory map. They can be accessed by assembly instructions only and not by dereferencing the pointers. There are registers for the processor specific peripherals(NVIC,DEBUG) and Microcontroller specific peripherals(I2c,UART) which are part of the memory map and each register has a unique address and can be accessed with address dereferencing.
--Unprivileged mode so that user tasks do not modify settings of kernel/OS code. Before handing the control to the user task, the kernel will change the access mode to that of unprivileged. If it wants to access low level things then it should do it using a system call that in turn will be services by the kernel.
+-Unprivileged mode so that user tasks do not modify settings of kernel/OS code. Before handing the control to the user task, the kernel will change the access mode to that of unprivileged. If it wants to access low level things then it should do it using a system call that in turn will be services by the kernel. By making the Special regis ter CONTROL to 1 we make it unprivileged. The default is privileged(0 value).
 
 INLINE ASSEMBLY CODE
 Why - This is the only way of accessing the core registers from C. We have to follow the non standard compiler extension for it.
 
+MEMORY MAP
+A 2-bit bus can access 4 different memory locations. A 32-bit wide processor can access 4GiB(0x0000 0000 to 0xFFFF FFFF) of unique addresses. This is the total address space of the processor. This address space is divided into different sections according to the processor designers. The processor expects executable code in the code space. Similarly, it expects data in the data space. Peripheral have their own space where the data is non executable. For Cortex M processor, first 512MB is code space(0x0000 0000 to 0x1FFF FFFF), then another 512MB of SRAM(0x2000 0000 to 0x3FFF FFFF),then another 512MB of microcontroller specific peripheral space(0x4000 0000 to 0x5FFF FFFF), then 1GB of External RAM(0x6000 0000 to 0x9FFF FFFF), then 1GB of external device(0xA000 0000 to 0xDFFF FFFF),then 1MB of processor specific peripherals(NVIC,ITM)(0xE000 0000 to 0xE00F FFFF). then finally 511MB of vendor specific memory(0xE010 0000 to 0xFFFF FFFF). 
 
+- First 1Mb of SRAM is bit addressable for enabling the atomic read/write to that memory. In this region each bit will have a different alias address onto which you can use Load instruction to set/clear that bit in a single instruction. 
+- Code and memory can have executable instructions. Peripheral address range is execute never(XN) region to prevent code injection and trying to do that will result in fault exception.
+- Bus architecture in CortexM is based on Advanced Microcontroller Bus Architecture(AMBA), designed by ARM to standardis the on chip bus communications in SoCs etc.
+-CortexM processor has two buses AHB and APB. AHB is the high speed bus and APB is used for low speed peripherals. It provided 4 AHB interfaces.Icode and Dcode connected to flash for fetching instructions,vector table,constants,ROM table data. System bus for SRAM and peripherals. One PPB(private peripheral bus) for connecting to processor specific peripherals.
+-There is a bus matrix which syncs, distribute and arbitrates the access to the bus in this multi master scenario(Processor,DMAs will be the masters in the bus and other peripheral will act like slaves)
+-Generally high speed interfaces like USB,Camera will have their own AHB bus. GPIOs and other peripherals will have seperate AHB. There will be a bridge that converts AHB signals to APB signals to talk to low speed peripherals like I2C,Timer,UART,ADC etc. resulting in low power consumption too.
+- Sample data path : Data in I2C peripheral will be on APB1 bus which goes to AHB/APB1 bridge and is put on AHB1 bus which goes to the bus matrix and connectes to the System bus of the processor.
 
+-Global and local static variables are stored in RAM. Local variables,arguments,return data,context frames are stored in stack.
 
+STACK OPERATIONS
+-there are 4 modes full/empty ascending/descending : full meaning it points to the last stacked element in the stack. Empty meaning it points to current empty location ie. one beyond the current empty location. ascending/descending suggests wheteher the stack growns towards the higher/lower memory address.
+-CortexM has three stack pointers - R13(SP),Mains stack pointer(MSP) and process stack pointer(PSP).After reset, MSP is selected as MSP ie value of MSP is copied to SP. Thread mode can change the current SP to PSP by CONTROL register. Handler mode code will always use MSP.
+- If you want to use PSP as a stack pointer in your application code then make sure that before using PSP you initialize the PSP to valid stack address in your code.
+- If you changing the SP inside a function, it will mess up with its returning. Therefore write naked functions(assembly style functions without any stacking/unstacking sequences) to change the SP to PSP.
+
+AAPCS
+-R0,R1,R2,R3,R12,R14(LR) are caller saved registers.It is the responsibility of the caller function to save them on the stack and retrieve once the callee returns.
+-R4 to R11 are callee saved registers. If the callee has to use them, they first must save these onto the stack and pop before returning.
+-Caller uses R0,R1,R2,R3 to send the arguments to the callee functions.
+-Callee uses R0,R1(in case of 64-bits) to send the result back to the caller function.
+-If there are more than 4 arguments, rest will be sent using stack.
 
 ITM Cortex M4:
 https://community.arm.com/developer/tools-software/tools/b/tools-software-ides-blog/posts/trace-cortex-m-software-with-the-instruction-trace-macrocell-itm
 
 Adding .gitignore after commiting all unnecessary shit:
 https://stackoverflow.com/questions/19663093/apply-gitignore-on-an-existing-repository-already-tracking-large-number-of-file
+
+Pushing after deleting the large file that was cauing issue:
+https://stackoverflow.com/questions/19573031/cant-push-to-github-because-of-large-file-which-i-already-deleted
