@@ -203,7 +203,36 @@ Exception Entry and Exit sequences:
 - EXC_RETURN value tells the processor of the state of the processor before the exception to which it should return to ie. return
 with MSP/PSP, return with handler/thread mode, with/out FPU.
 
+FAULT HANDLING and ANALYSIS
+- Fault is system exceptions.
+- Reset(-3), NMI(-2), Hardfault(-1) have non-configurable priority.
+- Hardfault, MemUsage, BusFault, UsageFault are called fault exceptions.
+- Hardfault is enabled by default(can be disabled by FAULTMASK register) and the other three are disabled by default and have
+configurable priority(default = 0).
+- If the configurable faults are disabled and any fault happens which are related to configurable exceptions then the fault is
+escalated to hardfault exception.
 
+example:how to trigger usage fault:
+create a pointer to point to SRAM address(odd address) and initialize with something. create a function pointer pointer to this
+and call that.Processor will try to fetch the instuction from that address and will enter usage fault.
+
+- For each fault there are registers indicating cause of that particular fault.
+- One more method is to see the stack frame(provided it is not corrupted) when the processor is in fault handler as it will
+contain xPSR, LR and PC . If you are printing the value of SP inside the fault handler, then you have to account for the change of
+SP as it enters the fault handler too(epilogue of function). Therefore you have to write pure assemble function(naked function) or
+I think we can use stackless attribute too for IAR compiler. Write only pure assembly inside naked functions.
+
+System level services: OS environment : PendSV(Pendable SerVice) and SVC(SuperVisor Call)
+- Supervisory calls are for requesting privileged operations or access to system resources from an OS. For example, a less
+privileged user task can trigger SVC for accessing device drivers,peripherals from the kernel of OS.
+- SVC is an thumb ISA instruction which caused SVC exception.
+- SVC instruction has a number/argument which is used to identify the request type by the kernel code. The SVC handler is executed
+right after the instruction(no delay unless higher priority exception happens at the same time).
+- How to extract the SVC number. It is stored in the opcode, so inside the handler when the thread mode is pre-empted by the SVC
+instruction find the return address(PC) by accesing MSP[6]. MSP[6]-2 will give the address of svc instruction, as it stores the
+next address of the next instruction.
+- PendSV is used for carrying out context switch between 2 or more tasks when no other exceptions are active in the system in an
+multitask OS system. 
 
 
 
