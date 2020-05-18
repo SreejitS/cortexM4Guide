@@ -12,72 +12,59 @@
 #endif
 
 #include <stdio.h>
+#include "main.h"
 
-void task_handler1(void);
-void task_handler2(void);
-void task_handler3(void);
-void task_handler4(void);
+void task1_handler(void);
+void task2_handler(void);
+void task3_handler(void);
+void task4_handler(void);
 
-void init_systick_timer(uint32_t tick_hz);
-
-//stack memory defines
-/*
- *	SRAM :-
- *
- * -----------------------------------------------------------------------
- * |							|  SCED	 |	T4	 |	T3	 |	T2	 |	T1	 |
- * |							| stack	 | stack | stack | stack | stack |
- * |							|  1KB	 |	1KB	 |	1KB	 |	1KB	 |	1KB	 |
- * |							|		 |		 |		 |		 |		 |
- * -----------------------------------------------------------------------
- * 0x20000000															0x20018000 (96KB of SRAM)
- *
- *
- * */
-
-#define SIZE_TASK_STACK 		1024U
-#define SIZE_SCHEDULER_STACK	1024U
-
-#define SRAM_START				0x20000000U
-#define SRAM_SIZE				( (96) * (1024))
-#define SRAM_END				( (SRAM_START) + (SRAM_SIZE) )
-
-#define T1_STACK_START			(SRAM_END)
-#define T2_STACK_START			( (SRAM_END) - (1 * SIZE_TASK_STACK) )
-#define T3_STACK_START			( (SRAM_END) - (2 * SIZE_TASK_STACK) )
-#define T4_STACK_START			( (SRAM_END) - (3 * SIZE_TASK_STACK) )
-#define SCHED_STACK_START		( (SRAM_END) - (4 * SIZE_TASK_STACK) )
-
-#define TICK_HZ					1000U
-
-#define CLOCK					4000000U
-#define SYSTICK_TIM_CLK			CLOCK
+void init_systick_timer(uint32_t);
+__attribute__((naked)) void init_scheduler_stack(uint32_t sched_top_of_stack);
+void init_task_stack(void);
+void enable_processor_faults(void);
+__attribute__((naked)) void switch_sp_to_psp(void);
 
 int main(void) {
+
+	enable_processor_faults();
+
+	//set MSP of the scheduler
+	init_scheduler_stack(SCHED_STACK_START);
+
+	//set task's stack with dummy stack frames
+	init_task_stack();
+
+	//1ms tick
 	init_systick_timer(TICK_HZ);
+
+	switch_sp_to_psp();
+
+	task1_handler();
+
 	for (;;)
 		;
 }
 
-void task_handler1(void) {
+void task1_handler(void) {
 	while (1) {
 		printf("Hola from TASK 1\n");
 	}
 }
 
-void task_handler2(void) {
+void task2_handler(void) {
 	while (1) {
 		printf("Hola from TASK 2\n");
 	}
 }
 
-void task_handler3(void) {
+void task3_handler(void) {
 	while (1) {
 		printf("Hola from TASK 3\n");
 	}
 }
 
-void task_handler4(void) {
+void task4_handler(void) {
 	while (1) {
 		printf("Hola from TASK 4\n");
 	}
@@ -85,8 +72,8 @@ void task_handler4(void) {
 
 void init_systick_timer(uint32_t tick_hz) {
 
-	uint32_t *pSRVR = (uint32_t* )0xE000E014; //SysTick Reload Value Register
-	uint32_t *pSCSR = (uint32_t* )0xE000E010; //SysTick Control and Status Register
+	uint32_t *pSRVR = (uint32_t*) 0xE000E014; //SysTick Reload Value Register
+	uint32_t *pSCSR = (uint32_t*) 0xE000E010; //SysTick Control and Status Register
 
 	uint32_t count_value = SYSTICK_TIM_CLK / tick_hz - 1;
 
@@ -99,11 +86,88 @@ void init_systick_timer(uint32_t tick_hz) {
 
 	*pSCSR |= (1 << 0); //enable systick
 
+}
 
+__attribute__((naked)) void init_scheduler_stack(uint32_t sched_top_of_stack) {
+	__asm volatile ("MSR MSP,R0");
+	//Put the first argument (AAPCS)ie. sched_top_of_stack into MSP
+	//Return from this sub routine. as this is a naked function there is no epilogue/prologue sequences for this function call
+	__asm volatile("BX LR");
+}
 
+uint32_t psp_of_tasks[MAX_TASKS] = { T1_STACK_START, T2_STACK_START,
+T3_STACK_START, T4_STACK_START };
+
+uint32_t task_handlers[MAX_TASKS] = { (uint32_t) task1_handler,
+		(uint32_t) task2_handler, (uint32_t) task3_handler,
+		(uint32_t) task4_handler };
+
+void init_task_stack(void) {
+
+	uint32_t *pPSP;
+
+	for (int i = 0; i < MAX_TASKS; i++) {
+		*pPSP = (uint32_t) psp_of_tasks[i];
+		*(pPSP--) = DUMMY_XPSPR;	//(1<<24) - T bit=1
+		*(pPSP--) = task_handlers[i] + 1;	//PC
+		*(pPSP--) = 0xFFFFFFFD;	//LR-return to thread mode,use PSP,no FPU
+
+		//R0-R12
+		for (int j = 0; j < 13; j++) {
+			*(pPSP--) = 0;
+		}
+		psp_of_tasks[i] = (uint32_t) pPSP;
+
+	}
+}
+
+void enable_processor_faults(void) {
+
+	uint32_t *pSHCSR = (uint32_t*) 0xE000ED24;
+
+	*pSHCSR |= (1 << 16); //mem manage
+	*pSHCSR |= (1 << 17); //bus fault
+	*pSHCSR |= (1 << 18); //usage fault
+
+}
+
+uint8_t current_task = 0;//task 1
+uint32_t get_psp_value(void) {
+	return psp_of_tasks[current_task];//return value stored in R0 (AAPCS)
+}
+
+__attribute__((naked)) void switch_sp_to_psp(void) {
+	//init the psp with task1 stack start
+	__asm volatile ("PUSH {LR}");//saving this to MSP as we are about to use LR
+	__asm volatile ("BL get_psp_value");//using BL not only B as we have to return back
+	__asm volatile ("MSR PSP,R0");//return value stored into PSP
+	__asm volatile ("POP {LR}");
+
+	//change SP to PSP
+	__asm volatile("MOV R0,#0x02");
+	__asm volatile("MSR CONTROL,R0");
+	__asm volatile("BX LR");
 
 }
 
 void SysTick_Handler(void) {
 
+}
+
+void HardFault_Handler(void) {
+	printf("Exception : Hardfault\n");
+	while (1)
+		;
+}
+
+void MemManage_Handler(void) {
+	printf("Exception : MemManage\n");
+	while (1)
+		;
+}
+
+void BusFault_Handler(void) {
+	printf("Exception : BusFault\n");
+	while (1)
+		;
 }
