@@ -231,9 +231,25 @@ right after the instruction(no delay unless higher priority exception happens at
 - How to extract the SVC number. It is stored in the opcode, so inside the handler when the thread mode is pre-empted by the SVC
 instruction find the return address(PC) by accesing MSP[6]. MSP[6]-2 will give the address of svc instruction, as it stores the
 next address of the next instruction.
+
 - PendSV is used for carrying out context switch between 2 or more tasks when no other exceptions are active in the system in an
 multitask OS system. 
+- PendSV is triggered by setting its pending status in the Interrupt Control and State Register. In an OS environment, PendSV is
+set to lowest priority and the PendSV handler is used to carry out the context switch.
+- Typically this is triggered in a higher priority handler and when the handler finishes its execution, the PendSV is triggered.
+- In a interupt noisy environment, we have to delay the context switch untill all the IRQs are serviced.
+- If a task is running and SysTick(set to highest priority) is triggered, then it pends the PendSV. After the SysTick handler
+completes its execution, it will go to the PendSV handler for context switch. If interrupt is triggered when a task is running,
+then the ISR is executed. If the SysTick timesout before the completion of Systick handler, then after it, it will return to the
+pre-empted interrupt which inturn returns to pendsv after own completion.(This is the delaying of context switch in interrupt
+noisy env)
+- If we do context switch in SysTick handler, then it will result in a usage fault if a task is interrupt due to IRQ which in turn
+is interrupted by systick, as it will return to the thread mode task not the handler mode ISR.
+- One more use case of PendSV is to split the processing of a lengthy ISR into time critical and time consuming parts. The isr
+executes the time critical part and pends the pendsv which then completes the time consuming part. Advantage of this design is
+that other interrupts can be processed and the system repsonsivenss improves.
 
+TASK SCHEDULER
 
 
 ITM Cortex M4:
