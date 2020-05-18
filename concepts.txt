@@ -250,8 +250,15 @@ executes the time critical part and pends the pendsv which then completes the ti
 that other interrupts can be processed and the system repsonsivenss improves.
 
 TASK SCHEDULER
-
-
+- Task is nothing but a schedulable piece of code that is running on the CPU. We can think of them as never returning C functions.
+- It has its own stack to create its local variables. When scheduler decides to schedule the next task, it saves the current
+task's context/state in its own private stack.
+- Scheduling is an algorithm which takes the decision based on priority/shared resource access/round-robin of pre-empting a
+running task from CPU and decides which task should run on the CPU next.
+- Context switching is procedure of switching out of the currently running task from CPU after saving the task's execution
+context/state and switching in the next task's to run on the CPU by retrieving the past execution context/state of that task.
+- State of task : General purpose registers + special registers + status registers ie R0-R12,PSP,LR,SP,PSR .
+Not(PRIMASK,FAULTMASK,BASEPIR,CONTROL <- these are privileged registers and won't be modified by thread code).
 ITM Cortex M4:
 https://community.arm.com/developer/tools-software/tools/b/tools-software-ides-blog/posts/trace-cortex-m-software-with-the-instruction-trace-macrocell-itm
 
@@ -260,3 +267,6 @@ https://stackoverflow.com/questions/19663093/apply-gitignore-on-an-existing-repo
 
 Pushing after deleting the large file that was cauing issue:
 https://stackoverflow.com/questions/19573031/cant-push-to-github-because-of-large-file-which-i-already-deleted
+
+Remove a folder from tracking in git
+https://stackoverflow.com/questions/24290358/remove-a-folder-from-git-tracking
