@@ -24,6 +24,8 @@ __attribute__((naked)) void init_scheduler_stack(uint32_t sched_top_of_stack);
 void init_task_stack(void);
 void enable_processor_faults(void);
 __attribute__((naked)) void switch_sp_to_psp(void);
+void save_psp_value(uint32_t);
+void update_next_task(void);
 
 int main(void) {
 
@@ -107,14 +109,21 @@ void init_task_stack(void) {
 	uint32_t *pPSP;
 
 	for (int i = 0; i < MAX_TASKS; i++) {
-		*pPSP = (uint32_t) psp_of_tasks[i];
-		*(pPSP--) = DUMMY_XPSPR;	//(1<<24) - T bit=1
-		*(pPSP--) = task_handlers[i] + 1;	//PC
-		*(pPSP--) = 0xFFFFFFFD;	//LR-return to thread mode,use PSP,no FPU
+		(pPSP) = (uint32_t*) psp_of_tasks[i];//make this pointer point to TOS of task and start fill with dummy values.this is odd.
+
+		pPSP--;
+		*pPSP = DUMMY_XPSPR;	//(1<<24) - T bit=1
+
+		pPSP--;
+		*pPSP = task_handlers[i];	//PC
+
+		pPSP--;
+		*pPSP = 0xFFFFFFFD;	//LR-return to thread mode,use PSP,no FPU
 
 		//R0-R12
 		for (int j = 0; j < 13; j++) {
-			*(pPSP--) = 0;
+			pPSP--;
+			*pPSP = 0;
 		}
 		psp_of_tasks[i] = (uint32_t) pPSP;
 
@@ -131,16 +140,19 @@ void enable_processor_faults(void) {
 
 }
 
-uint8_t current_task = 0;//task 1
+uint8_t current_task = 0; //task 1
 uint32_t get_psp_value(void) {
-	return psp_of_tasks[current_task];//return value stored in R0 (AAPCS)
+	return psp_of_tasks[current_task]; //return value stored in R0 (AAPCS)
 }
 
 __attribute__((naked)) void switch_sp_to_psp(void) {
 	//init the psp with task1 stack start
-	__asm volatile ("PUSH {LR}");//saving this to MSP as we are about to use LR
-	__asm volatile ("BL get_psp_value");//using BL not only B as we have to return back
-	__asm volatile ("MSR PSP,R0");//return value stored into PSP
+	__asm volatile ("PUSH {LR}");
+	//saving this to MSP as we are about to use LR
+	__asm volatile ("BL get_psp_value");
+	//using BL not only B as we have to return back
+	__asm volatile ("MSR PSP,R0");
+	//return value stored into PSP
 	__asm volatile ("POP {LR}");
 
 	//change SP to PSP
@@ -150,7 +162,39 @@ __attribute__((naked)) void switch_sp_to_psp(void) {
 
 }
 
-void SysTick_Handler(void) {
+void save_psp_value(uint32_t current_psp) {
+	psp_of_tasks[current_task] = current_psp;
+}
+
+void update_next_task(void) {
+	//round robin
+	current_task++;
+	current_task %= MAX_TASKS; //0-3
+}
+
+__attribute__((naked)) void SysTick_Handler(void) {
+	//save the context of current task
+	__asm volatile ("MRS R0,PSP");
+	//store r4-r11, cant use push as this is handler code and MSP is used
+	__asm volatile ("STMDB R0!,{R4-R11}");
+
+	__asm volatile("PUSH {LR}");
+
+	__asm volatile ("BL save_psp_value");
+
+	//retrieve context of next task
+	__asm volatile ("BL update_next_task");
+	//get psp value of the next task
+	__asm volatile ("BL get_psp_value");
+	//retrieve r4-r11 of this task
+
+	__asm volatile ("LDM R0!,{R4-R11}");
+	//update psp
+	__asm volatile("MSR PSP,R0");
+
+	__asm volatile("POP {LR}");
+	//EXEC_RETURN copied into PC and exit sequence is triggered.
+	__asm volatile("BX LR");
 
 }
 

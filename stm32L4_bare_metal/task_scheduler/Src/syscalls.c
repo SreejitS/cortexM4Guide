@@ -56,6 +56,26 @@
 #include <sys/time.h>
 #include <sys/times.h>
 
+#define ITM_Port8(n)    (*((volatile unsigned char *)(0xe0000000+4*n)))
+#define ITM_Port16(n)   (*((volatile unsigned short*)(0xe0000000+4*n)))
+#define ITM_Port32(n)   (*((volatile unsigned long *)(0xe0000000+4*n)))
+
+#define ITM_TER   (*((unsigned long *) 0xe0000e00))
+#define ITM_TCR   (*((unsigned long *) 0xe0000e80))
+
+#define DEMCR           (*((volatile unsigned long *)(0xe000EDFC)))
+#define TRCENA          0x01000000
+
+static int32_t ITM_SendChar (int32_t ch) {
+    if ((ITM_TCR & (1UL << 0)) &&         /* ITM enabled */
+        (DEMCR & TRCENA) &&
+        (ITM_TER & (1UL << 0)))
+    {
+        while (ITM_Port32(0) == 0);
+        ITM_Port8(0) = (uint8_t)ch;
+    }
+    return (ch);
+}
 
 /* Variables */
 //#undef errno
@@ -109,7 +129,8 @@ __attribute__((weak)) int _write(int file, char *ptr, int len)
 
 	for (DataIdx = 0; DataIdx < len; DataIdx++)
 	{
-		__io_putchar(*ptr++);
+//		__io_putchar(*ptr++);
+		ITM_SendChar(*ptr++);
 	}
 	return len;
 }
