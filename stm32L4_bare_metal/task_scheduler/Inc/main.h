@@ -55,4 +55,7 @@
 #define DELAY_COUNT_250MS 		(250U  * DELAY_COUNT_1MS)
 #define DELAY_COUNT_125MS 		(125U  * DELAY_COUNT_1MS)
 
+#define INTERRUPT_DISABLE() do{__asm volatile("MOV R0,#0x01");__asm volatile("MSR PRIMASK,R0");}while(0)
+#define INTERRUPT_ENABLE() do{__asm volatile("MOV R0,#0x00");__asm volatile("MSR PRIMASK,R0");}while(0)
+
 #endif /* MAIN_H_ */
