@@ -259,6 +259,22 @@ running task from CPU and decides which task should run on the CPU next.
 context/state and switching in the next task's to run on the CPU by retrieving the past execution context/state of that task.
 - State of task : General purpose registers + special registers + status registers ie R0-R12,PSP,LR,SP,PSR .
 Not(PRIMASK,FAULTMASK,BASEPIR,CONTROL <- these are privileged registers and won't be modified by thread code).
+- During interrupt the processor will automaically save the caller saved stack ie R0-R3,LR,PC,PSR. so in the exception handler we
+have to save the rest of the registers ie R4-R11 manually.
+- We have to configure systick for firing at particular time interval eg. 1ms. The systick triggers the exception when the counter
+reaches 0 and then reloads the value. so you must fill the reload register with count-1.
+- When task 2 is running for the first time, it doesnt have any context saved. Therefore we initialize it with a dummy stack
+frame. Registers can all be made to 0.For every task 24th bit is T-bit and sould be set to 1 every time. PC will have the address
+of task 2(LSB=1). LR will have EXC_RETURN(0xFFFFFFFD - return to handler mode with PSP, no FPU).
+
+Blocking states:
+-When the task has nothing to do, it will call a delay function that will put the task into blocking state untill the dealy is
+elapsed. Scheduler will schedule only those tasks which are in running state.
+- We can have a tcb structure of psp value, block_count, run_state, function_pointer as way to implement this.
+- delay_task(1000) will make the task into block state and the systick handler will update the ticks of all those tasks who are blocked. 
+- scheduler will check the block_count of each blocked tasks and put them in running state when the period is elapsed.
+- If all tasks are blocked then the scheduler will run idle task.(can put CPU in sleep).
+
 ITM Cortex M4:
 https://community.arm.com/developer/tools-software/tools/b/tools-software-ides-blog/posts/trace-cortex-m-software-with-the-instruction-trace-macrocell-itm
 
