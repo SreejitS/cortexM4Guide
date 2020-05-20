@@ -27,6 +27,8 @@ __attribute__((naked)) void switch_sp_to_psp(void);
 void save_psp_value(uint32_t);
 void update_next_task(void);
 
+void delay(uint32_t);
+
 int main(void) {
 
 	enable_processor_faults();
@@ -50,25 +52,38 @@ int main(void) {
 
 void task1_handler(void) {
 	while (1) {
-		printf("Hola from TASK 1\n");
+		printf("Green ON\n");
+		delay(DELAY_COUNT_1S);
+		printf("Green OFF\n");
+		delay(DELAY_COUNT_1S);
+
 	}
 }
 
 void task2_handler(void) {
 	while (1) {
-		printf("Hola from TASK 2\n");
+		printf("Orange ON\n");
+		delay(DELAY_COUNT_500MS);
+		printf("Orange OFF\n");
+		delay(DELAY_COUNT_500MS);
 	}
 }
 
 void task3_handler(void) {
 	while (1) {
-		printf("Hola from TASK 3\n");
+		printf("Blue ON\n");
+		delay(DELAY_COUNT_250MS);
+		printf("Blue ON\n");
+		delay(DELAY_COUNT_250MS);
 	}
 }
 
 void task4_handler(void) {
 	while (1) {
-		printf("Hola from TASK 4\n");
+		printf("Red ON\n");
+		delay(DELAY_COUNT_125MS);
+		printf("Red OFF\n");
+		delay(DELAY_COUNT_125MS);
 	}
 }
 
@@ -90,6 +105,12 @@ void init_systick_timer(uint32_t tick_hz) {
 
 }
 
+
+void delay(uint32_t count) {
+	for (uint32_t i = 0; i < count; i++)
+		;
+}
+
 __attribute__((naked)) void init_scheduler_stack(uint32_t sched_top_of_stack) {
 	__asm volatile ("MSR MSP,R0");
 	//Put the first argument (AAPCS)ie. sched_top_of_stack into MSP
@@ -97,25 +118,49 @@ __attribute__((naked)) void init_scheduler_stack(uint32_t sched_top_of_stack) {
 	__asm volatile("BX LR");
 }
 
-uint32_t psp_of_tasks[MAX_TASKS] = { T1_STACK_START, T2_STACK_START,
-T3_STACK_START, T4_STACK_START };
+//uint32_t psp_of_tasks[MAX_TASKS] = { T1_STACK_START, T2_STACK_START,
+//T3_STACK_START, T4_STACK_START };
+//
+//uint32_t task_handlers[MAX_TASKS] = { (uint32_t) task1_handler,
+//		(uint32_t) task2_handler, (uint32_t) task3_handler,
+//		(uint32_t) task4_handler };
 
-uint32_t task_handlers[MAX_TASKS] = { (uint32_t) task1_handler,
-		(uint32_t) task2_handler, (uint32_t) task3_handler,
-		(uint32_t) task4_handler };
+typedef struct {
+	uint32_t psp_value;
+	uint32_t block_count;
+	uint8_t current_state;
+	void (*task_handler)(void);
+} TCB_t;
+
+TCB_t user_tasks[MAX_TASKS];
 
 void init_task_stack(void) {
+
+	user_tasks[0].current_state = TASK_RUNNING_STATE;
+	user_tasks[1].current_state = TASK_RUNNING_STATE;
+	user_tasks[2].current_state = TASK_RUNNING_STATE;
+	user_tasks[3].current_state = TASK_RUNNING_STATE;
+
+	user_tasks[0].psp_value = T1_STACK_START;
+	user_tasks[1].psp_value = T2_STACK_START;
+	user_tasks[2].psp_value = T3_STACK_START;
+	user_tasks[3].psp_value = T4_STACK_START;
+
+	user_tasks[0].task_handler = task1_handler;
+	user_tasks[1].task_handler = task2_handler;
+	user_tasks[2].task_handler = task3_handler;
+	user_tasks[3].task_handler = task4_handler;
 
 	uint32_t *pPSP;
 
 	for (int i = 0; i < MAX_TASKS; i++) {
-		(pPSP) = (uint32_t*) psp_of_tasks[i];//make this pointer point to TOS of task and start fill with dummy values.this is odd.
-
+		(pPSP) = (uint32_t*) user_tasks[i].psp_value;//make this pointer point to TOS of task and start fill with dummy values.this is odd.
+//<-
 		pPSP--;
 		*pPSP = DUMMY_XPSPR;	//(1<<24) - T bit=1
 
 		pPSP--;
-		*pPSP = task_handlers[i];	//PC
+		*pPSP = (uint32_t)user_tasks[i].task_handler;	//PC
 
 		pPSP--;
 		*pPSP = 0xFFFFFFFD;	//LR-return to thread mode,use PSP,no FPU
@@ -125,7 +170,7 @@ void init_task_stack(void) {
 			pPSP--;
 			*pPSP = 0;
 		}
-		psp_of_tasks[i] = (uint32_t) pPSP;
+		user_tasks[i].psp_value = (uint32_t) pPSP;
 
 	}
 }
@@ -142,7 +187,7 @@ void enable_processor_faults(void) {
 
 uint8_t current_task = 0; //task 1
 uint32_t get_psp_value(void) {
-	return psp_of_tasks[current_task]; //return value stored in R0 (AAPCS)
+	return user_tasks[current_task].psp_value; //return value stored in R0 (AAPCS)
 }
 
 __attribute__((naked)) void switch_sp_to_psp(void) {
@@ -163,7 +208,7 @@ __attribute__((naked)) void switch_sp_to_psp(void) {
 }
 
 void save_psp_value(uint32_t current_psp) {
-	psp_of_tasks[current_task] = current_psp;
+	user_tasks[current_task].psp_value = current_psp;
 }
 
 void update_next_task(void) {
@@ -189,6 +234,7 @@ __attribute__((naked)) void SysTick_Handler(void) {
 	//retrieve r4-r11 of this task
 
 	__asm volatile ("LDM R0!,{R4-R11}");
+	// <-
 	//update psp
 	__asm volatile("MSR PSP,R0");
 
