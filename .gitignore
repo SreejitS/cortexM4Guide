@@ -2,4 +2,6 @@ code/
 stm32L4_bare_metal/**/.settings
 stm32L4_bare_metal/**/.cproject
 stm32L4_bare_metal/**/.project
+stm32L4_bare_metal/**/**.cfg
+stm32L4_bare_metal/**/**.launch
 stm32L4_bare_metal/RemoteSystemsTempFiles

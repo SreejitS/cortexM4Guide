@@ -23,7 +23,7 @@
  *
  * */
 
-#define MAX_TASKS		4
+#define MAX_TASKS		5 //4 user task + 1 idle task
 
 #define SIZE_TASK_STACK 		1024U
 #define SIZE_SCHEDULER_STACK	1024U
@@ -36,7 +36,8 @@
 #define T2_STACK_START			( (SRAM_END) - (1 * SIZE_TASK_STACK) )
 #define T3_STACK_START			( (SRAM_END) - (2 * SIZE_TASK_STACK) )
 #define T4_STACK_START			( (SRAM_END) - (3 * SIZE_TASK_STACK) )
-#define SCHED_STACK_START		( (SRAM_END) - (4 * SIZE_TASK_STACK) )
+#define IDLE_STACK_START		( (SRAM_END) - (4 * SIZE_TASK_STACK) )
+#define SCHED_STACK_START		( (SRAM_END) - (5 * SIZE_TASK_STACK) )
 
 #define TICK_HZ					1000U
 
@@ -44,5 +45,14 @@
 #define SYSTICK_TIM_CLK			CLOCK
 
 #define DUMMY_XPSPR 		(1U<<24)
+
+#define TASK_READY_STATE 		0x00
+#define TASK_BLOCK_STATE 		0xFF
+
+#define DELAY_COUNT_1MS 		 1250U
+#define DELAY_COUNT_1S  		(1000U * DELAY_COUNT_1MS)
+#define DELAY_COUNT_500MS  		(500U  * DELAY_COUNT_1MS)
+#define DELAY_COUNT_250MS 		(250U  * DELAY_COUNT_1MS)
+#define DELAY_COUNT_125MS 		(125U  * DELAY_COUNT_1MS)
 
 #endif /* MAIN_H_ */
