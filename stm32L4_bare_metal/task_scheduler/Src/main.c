@@ -141,11 +141,17 @@ void schedule(void) {
 }
 
 void task_delay(uint32_t tick_count) {
+	//due to global variable access in thread and handler mode
+	//serializing the access
+	INTERRUPT_DISABLE();
+
 	if (current_task) {
 		user_tasks[current_task].block_count = g_tick_count + tick_count;
 		user_tasks[current_task].current_state = TASK_BLOCK_STATE;
 		schedule();
 	}
+
+	INTERRUPT_ENABLE();
 }
 
 __attribute__((naked)) void init_scheduler_stack(uint32_t sched_top_of_stack) {
