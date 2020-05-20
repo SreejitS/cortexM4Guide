@@ -275,6 +275,10 @@ elapsed. Scheduler will schedule only those tasks which are in running state.
 - scheduler will check the block_count of each blocked tasks and put them in running state when the period is elapsed.
 - If all tasks are blocked then the scheduler will run idle task.(can put CPU in sleep).
 
+-one use case of do-while. when you have to define a multiline macro,put it inside a do-while. For ex:
+#define INTERRUPT_DISABLE() do{__asm volatile("MOV R0,#0x01");__asm volatile("MSR PRIMASK,R0");}while(0);
+
+
 ITM Cortex M4:
 https://community.arm.com/developer/tools-software/tools/b/tools-software-ides-blog/posts/trace-cortex-m-software-with-the-instruction-trace-macrocell-itm
 
